@@ -1,0 +1,482 @@
+@import url('https://fonts.googleapis.com/css2?family=Archivo+Black&family=Instrument+Serif:ital@0;1&family=Work+Sans:wght@400;500;600;700;800&family=Permanent+Marker&family=Anton&family=Inter:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap');
+@import 'tailwindcss';
+
+/*
+ * Premium dark token system (espresso / gold / cream).
+ * Legacy variable names are kept as aliases so older pages keep working.
+ */
+:root {
+  /* Core palette — warm near-blacks, never pure black */
+  --color-bg: #0b0906;
+  --color-bg2: #121009;
+  --color-bg3: #0e0c08;
+  --color-bg-warm: #1e1509;
+
+  /* Gold accent system */
+  --color-gold: #b6912e;
+  --color-gold-bright: #d9b45b;
+  --color-gold-dim: rgba(182, 145, 46, 0.55);
+
+  /* Text hierarchy — cream, never pure white */
+  --color-cream: #f2e7d0;
+  --color-muted: rgba(242, 231, 208, 0.55);
+  --color-faint: rgba(242, 231, 208, 0.28);
+  --color-hairline: rgba(242, 231, 208, 0.12);
+
+  /* Legacy aliases (older pages) — remapped to the graffiti palette */
+  --color-ink: #0a0710;
+  --color-bone: #f8f4ea;
+  --color-surface: #141018;
+  --color-surface-light: #1c1522;
+  --color-blaze: #ff3ea5;
+  --color-toxic: #2ee6ff;
+  --color-ash: #241a2e;
+
+  font-family: 'Work Sans', 'Inter', system-ui, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color: var(--color-cream);
+  background-color: var(--color-bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html {
+  scroll-behavior: auto;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background: var(--color-bg);
+  color: var(--color-cream);
+  overflow-x: hidden;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* Type roles */
+.font-display {
+  font-family: 'Archivo Black', 'Arial Black', sans-serif;
+}
+
+.font-serif-accent {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-style: italic;
+  font-weight: 400;
+}
+
+.font-body {
+  font-family: 'Work Sans', sans-serif;
+}
+
+.font-marker {
+  font-family: 'Permanent Marker', cursive;
+}
+
+/* Legacy type helpers */
+.font-anton {
+  font-family: 'Anton', sans-serif;
+}
+
+.font-mono {
+  font-family: 'Space Mono', monospace;
+}
+
+.font-sans {
+  font-family: 'Inter', sans-serif;
+}
+
+/* Gold section label */
+.gold-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.45em;
+  text-transform: uppercase;
+  color: var(--color-gold);
+  white-space: nowrap;
+}
+
+.gold-label::before {
+  content: '';
+  width: clamp(32px, 8vw, 48px);
+  height: 1px;
+  background: var(--color-gold);
+  flex-shrink: 0;
+}
+
+.gold-label--center::after {
+  content: '';
+  width: clamp(32px, 8vw, 48px);
+  height: 1px;
+  background: var(--color-gold);
+  flex-shrink: 0;
+}
+
+/* Outlined decorative typography */
+.outline-text {
+  color: transparent;
+  -webkit-text-stroke: 1.5px rgba(242, 231, 208, 0.22);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background: #ff3ea5;
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #2ee6ff;
+}
+
+/* Selection */
+::selection {
+  background: #ff3ea5;
+  color: #0a0710;
+}
+
+/* Marquee */
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-marquee {
+  animation: marquee 20s linear infinite;
+  will-change: transform;
+}
+
+.animate-marquee-fast {
+  animation: marquee 10s linear infinite;
+  will-change: transform;
+}
+
+.animate-marquee-slow {
+  animation: marquee 40s linear infinite;
+  will-change: transform;
+}
+
+/* Noise texture overlay */
+.noise-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.035;
+}
+
+/* Gradient mesh background */
+.gradient-mesh {
+  background:
+    radial-gradient(ellipse 80% 50% at 20% 40%, rgba(182, 145, 46, 0.12), transparent),
+    radial-gradient(ellipse 60% 40% at 80% 20%, rgba(217, 180, 91, 0.07), transparent),
+    radial-gradient(ellipse 50% 60% at 50% 80%, rgba(182, 145, 46, 0.05), transparent);
+}
+
+/* Magnetic button styles */
+.magnetic-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+/* Horizontal scroll container */
+.horizontal-scroll-container {
+  display: flex;
+  flex-wrap: nowrap;
+  will-change: transform;
+}
+
+/* Reveal animations */
+@keyframes reveal-up {
+  from {
+    opacity: 0;
+    transform: translateY(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes reveal-left {
+  from {
+    opacity: 0;
+    transform: translateX(-40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes reveal-right {
+  from {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes reveal-scale {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes line-draw {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+/* Velocity skew helper */
+.velocity-skew {
+  will-change: transform;
+}
+
+/* Parallax layers */
+.parallax-slow {
+  will-change: transform;
+}
+
+.parallax-fast {
+  will-change: transform;
+}
+
+/* Image hover effects */
+.image-reveal {
+  overflow: hidden;
+}
+
+.image-reveal img {
+  transition: transform 0.8s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.image-reveal:hover img {
+  transform: scale(1.05);
+}
+
+/* ------------------------------------------------------------------
+ * Store exterior scene
+ * ------------------------------------------------------------------ */
+
+/* Rain streaks */
+@keyframes rain-fall {
+  from {
+    transform: translateY(-12vh);
+  }
+  to {
+    transform: translateY(112vh);
+  }
+}
+
+.rain-streak {
+  position: absolute;
+  top: 0;
+  width: 1px;
+  background: linear-gradient(to bottom, transparent, rgba(242, 231, 208, 0.28));
+  animation: rain-fall linear infinite;
+  will-change: transform;
+  pointer-events: none;
+}
+
+/* Neon sign flicker */
+@keyframes neon-flicker {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  92% {
+    opacity: 1;
+  }
+  93% {
+    opacity: 0.55;
+  }
+  94% {
+    opacity: 1;
+  }
+  96% {
+    opacity: 0.7;
+  }
+  97% {
+    opacity: 1;
+  }
+}
+
+.neon-sign {
+  animation: neon-flicker 7s linear infinite;
+}
+
+/* Enter button breathing glow */
+@keyframes enter-breathe {
+  0%,
+  100% {
+    box-shadow: 0 0 24px rgba(255, 62, 165, 0.45), 0 0 64px rgba(255, 62, 165, 0.18);
+  }
+  50% {
+    box-shadow: 0 0 42px rgba(255, 62, 165, 0.7), 0 0 110px rgba(46, 230, 255, 0.3);
+  }
+}
+
+.enter-glow {
+  animation: enter-breathe 3.2s ease-in-out infinite;
+}
+
+/* Interior spotlight flicker (very subtle) */
+@keyframes spot-flicker {
+  0%,
+  100% {
+    opacity: 0.9;
+  }
+  48% {
+    opacity: 0.9;
+  }
+  50% {
+    opacity: 0.75;
+  }
+  52% {
+    opacity: 0.9;
+  }
+}
+
+.spot-cone {
+  animation: spot-flicker 9s ease-in-out infinite;
+}
+
+/* Swipe hint dash travel */
+@keyframes hint-travel {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+.hint-line {
+  position: relative;
+  overflow: hidden;
+}
+
+.hint-line::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: 40%;
+  background: linear-gradient(to right, transparent, #2ee6ff, transparent);
+  animation: hint-travel 1.8s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+
+/* Scroll hint dot */
+@keyframes scroll-dot {
+  0% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(26px);
+    opacity: 0;
+  }
+}
+
+.scroll-dot {
+  animation: scroll-dot 1.9s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+
+/* Focus styles */
+*:focus-visible {
+  outline: 2px solid var(--color-gold);
+  outline-offset: 2px;
+}
+
+/* Mobile GPU discipline */
+@media (max-width: 768px) {
+  * {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  .rain-streak:nth-child(n + 13) {
+    display: none;
+  }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .animate-marquee,
+  .animate-marquee-fast,
+  .animate-marquee-slow,
+  .rain-streak {
+    animation: none !important;
+  }
+}
