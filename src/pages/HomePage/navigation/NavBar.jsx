@@ -51,7 +51,7 @@ function NavBar() {
         backgroundColor: background,
         backdropFilter: backdropBlur,
         WebkitBackdropFilter: backdropBlur,
-        borderBottomColor: useTransform(borderOpacity, (v) => `rgba(255,62,165,${v * 0.35})`),
+        borderBottomColor: useTransform(borderOpacity, (v) => `rgba(216,178,106,${v * 0.3})`),
       }}
       animate={{ y: isVisible ? 0 : -100 }}
       transition={{ duration: 0.35, ease: [0.23, 1, 0.32, 1] }}

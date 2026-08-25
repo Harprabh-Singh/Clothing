@@ -23,14 +23,14 @@
   --color-faint: rgba(242, 231, 208, 0.28);
   --color-hairline: rgba(242, 231, 208, 0.12);
 
-  /* Legacy aliases (older pages) — remapped to the graffiti palette */
-  --color-ink: #0a0710;
-  --color-bone: #f8f4ea;
-  --color-surface: #141018;
-  --color-surface-light: #1c1522;
-  --color-blaze: #ff3ea5;
-  --color-toxic: #2ee6ff;
-  --color-ash: #241a2e;
+  /* Legacy aliases (older pages) — warm boutique palette */
+  --color-ink: #0c0a08;
+  --color-bone: #f5f1e8;
+  --color-surface: #14110c;
+  --color-surface-light: #1c1712;
+  --color-blaze: #d8b26a;
+  --color-toxic: #e8d5ae;
+  --color-ash: #221b12;
 
   font-family: 'Work Sans', 'Inter', system-ui, sans-serif;
   line-height: 1.5;
@@ -141,18 +141,18 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #ff3ea5;
+  background: #d8b26a;
   border-radius: 2px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #2ee6ff;
+  background: #e8d5ae;
 }
 
 /* Selection */
 ::selection {
-  background: #ff3ea5;
-  color: #0a0710;
+  background: #d8b26a;
+  color: #0c0a08;
 }
 
 /* Marquee */
@@ -308,7 +308,7 @@ body {
 }
 
 /* ------------------------------------------------------------------
- * Store exterior scene
+ * Closet scenes (bedroom hallway exterior + walk-in closet interior)
  * ------------------------------------------------------------------ */
 
 /* Rain streaks */
@@ -362,10 +362,10 @@ body {
 @keyframes enter-breathe {
   0%,
   100% {
-    box-shadow: 0 0 24px rgba(255, 62, 165, 0.45), 0 0 64px rgba(255, 62, 165, 0.18);
+    box-shadow: 0 0 24px rgba(216, 178, 106, 0.4), 0 0 64px rgba(216, 178, 106, 0.15);
   }
   50% {
-    box-shadow: 0 0 42px rgba(255, 62, 165, 0.7), 0 0 110px rgba(46, 230, 255, 0.3);
+    box-shadow: 0 0 42px rgba(232, 213, 174, 0.65), 0 0 110px rgba(216, 178, 106, 0.28);
   }
 }
 
@@ -414,7 +414,7 @@ body {
   position: absolute;
   inset: 0;
   width: 40%;
-  background: linear-gradient(to right, transparent, #2ee6ff, transparent);
+  background: linear-gradient(to right, transparent, #d8b26a, transparent);
   animation: hint-travel 1.8s cubic-bezier(0.65, 0, 0.35, 1) infinite;
 }
 
@@ -479,4 +479,71 @@ body {
   .rain-streak {
     animation: none !important;
   }
+}
+
+/* ------------------------------------------------------------------
+ * Entry room (full-viewport 3D door scene)
+ * ------------------------------------------------------------------ */
+
+/* dust motes drifting in the light shaft */
+@keyframes dl-drift {
+  0% {
+    transform: translate3d(0, -14px, 0);
+    opacity: 0;
+  }
+  18% {
+    opacity: 0.85;
+  }
+  82% {
+    opacity: 0.5;
+  }
+  100% {
+    transform: translate3d(16px, 110px, 0);
+    opacity: 0;
+  }
+}
+
+.dl-mote {
+  position: absolute;
+  border-radius: 9999px;
+  background: rgba(255, 226, 166, 0.9);
+  filter: blur(0.4px);
+  animation: dl-drift linear infinite;
+  will-change: transform, opacity;
+}
+
+/* film grain jitter */
+@keyframes dl-grain-jitter {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(-1.5%, 1%);
+  }
+  50% {
+    transform: translate(1%, -1.5%);
+  }
+  75% {
+    transform: translate(-1%, -1%);
+  }
+}
+
+.dl-grain {
+  animation: dl-grain-jitter 0.7s steps(3) infinite;
+}
+
+/* sconce idle breathing */
+@keyframes er-sconce-breathe {
+  0%,
+  100% {
+    opacity: 0.72;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.er-sconce {
+  animation: er-sconce-breathe 4.2s ease-in-out infinite;
 }
