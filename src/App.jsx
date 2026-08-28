@@ -1,11 +1,11 @@
-import { useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
+import { useState } from 'react'
 import { Routes, Route, useLocation } from 'react-router-dom'
-import EntryRoom from './components/EntryRoom'
 import { CartProvider } from './context/CartContext'
 import ScrollProgress from './components/ScrollProgress'
 import SmoothScroll from './components/SmoothScroll'
 import HomePage from './pages/HomePage/HomePage'
+import ClosetInterior from './components/ClosetInterior'
 import ShopPage from './pages/ShopPage/ShopPage'
 import ProductDetailPage from './pages/ProductDetailPage/ProductDetailPage'
 import DropsPage from './pages/DropsPage/DropsPage'
@@ -21,32 +21,26 @@ const pageTransition = {
 
 function App() {
   const location = useLocation()
-  const [entryDone, setEntryDone] = useState(() => sessionStorage.getItem('va-entry') === 'done')
-  const showEntry = !entryDone && location.pathname === '/'
-
-  if (showEntry) {
-    return (
-      <EntryRoom
-        onDone={() => {
-          sessionStorage.setItem('va-entry', 'done')
-          setEntryDone(true)
-        }}
-      />
-    )
-  }
+  const isHome = location.pathname === '/'
+  // the entry sequence owns the opening viewport — the page progress bar and
+  // the rest of the chrome only appear once the visitor has passed the door
+  const [entryPassed, setEntryPassed] = useState(false)
 
   return (
     <CartProvider>
       <SmoothScroll>
-        <ScrollProgress />
+        {(!isHome || entryPassed) && <ScrollProgress />}
         <AnimatePresence mode="wait">
           <Routes location={location} key={location.pathname}>
-            <Route path="/" element={<motion.div key="home" {...pageTransition}><HomePage /></motion.div>} />
+            <Route path="/" element={<motion.div key="home" {...pageTransition}><HomePage onEntryPassed={setEntryPassed} /></motion.div>} />
             <Route path="/shop" element={<motion.div key="shop" {...pageTransition}><ShopPage /></motion.div>} />
             <Route path="/shop/:productId" element={<motion.div key="detail" {...pageTransition}><ProductDetailPage /></motion.div>} />
             <Route path="/drops" element={<motion.div key="drops" {...pageTransition}><DropsPage /></motion.div>} />
             <Route path="/about" element={<motion.div key="about" {...pageTransition}><AboutPage /></motion.div>} />
             <Route path="/contact" element={<motion.div key="contact" {...pageTransition}><ContactPage /></motion.div>} />
+            {/* temporary dev route: the standalone closet interior, developed
+                and tested independently of the entry-door sequence */}
+            <Route path="/closet" element={<motion.div key="closet" {...pageTransition}><ClosetInterior /></motion.div>} />
           </Routes>
         </AnimatePresence>
       </SmoothScroll>
