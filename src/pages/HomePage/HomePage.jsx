@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react'
 import EntryDoor from '../../components/EntryDoor'
 import ClosetInterior from '../../components/ClosetInterior'
 import NavBar from './navigation/NavBar'
-import GarmentSequence from './sections/GarmentSequence/GarmentSequence'
+import DoorSequence from './sections/GarmentSequence/DoorSequence'
 import ProductGrid from './sections/ProductSection/ProductGrid'
 import AboutSection from './sections/AboutSection/AboutSection'
 import NewsletterSection from './sections/NewsletterSection/NewsletterSection'
@@ -33,7 +33,7 @@ function HomePage({ onEntryPassed }) {
         {entryPassed && (
           <>
             <ClosetInterior />
-            <GarmentSequence />
+            <DoorSequence />
             <ProductGrid />
             <AboutSection />
             <NewsletterSection />

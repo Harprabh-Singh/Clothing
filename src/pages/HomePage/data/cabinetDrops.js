@@ -29,6 +29,10 @@ const cabinetDrops = [
     season: 'FW — 26',
     status: 'LIVE NOW',
     accent: '#d8b26a',
+    // per-drop color grade — applied to the door art so each swipe reads as a
+    // distinct world: SIGNAL stays warm amber, pushed warmer
+    grade: 'saturate(1.12) sepia(0.22) brightness(1.02)',
+    tint: '#d8b26a',
     doorArt: '/images/cabinets/door-signal.jpg',
     wall: 'left',
     depth: 'front',
@@ -45,6 +49,9 @@ const cabinetDrops = [
     season: 'FW — 25',
     status: 'ARCHIVE',
     accent: '#9db8a4',
+    // NIGHT RAIN — cooler, desaturated, blue-sage cast
+    grade: 'saturate(0.62) brightness(0.92)',
+    tint: '#8fb0c4',
     doorArt: '/images/cabinets/door-nightrain.jpg',
     wall: 'left',
     depth: 'back',
@@ -61,6 +68,9 @@ const cabinetDrops = [
     season: 'SS — 25',
     status: 'ARCHIVE',
     accent: '#c98a5e',
+    // CONCRETE — grayer, heavily desaturated stone mood
+    grade: 'grayscale(0.5) brightness(0.97)',
+    tint: '#9a938a',
     doorArt: '/images/cabinets/door-concrete.jpg',
     wall: 'right',
     depth: 'front',
@@ -77,6 +87,9 @@ const cabinetDrops = [
     season: 'SS — 25',
     status: 'SOLD OUT',
     accent: '#8a94a6',
+    // HARDWARE — cold steel, slightly brighter, blue-gray cast
+    grade: 'saturate(0.78) brightness(1.04)',
+    tint: '#8a94a6',
     doorArt: '/images/cabinets/door-hardware.jpg',
     wall: 'right',
     depth: 'back',

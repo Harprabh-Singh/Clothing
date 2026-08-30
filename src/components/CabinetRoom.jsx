@@ -5,7 +5,8 @@
  *   • Active drop's door art fills 100vw × 100vh — it IS the scene, not a panel within one
  *   • Swipe left/right or tap arrows to cycle through all 4 drops
  *   • Tap the door → it slides left (off screen), revealing full-screen garment interior
- *   • Tap a garment strip → GarmentSheet bottom panel slides up with the "turn-to-face" moment
+ *   • Tap a hanging piece → it pulls forward (faces you, scales up, brightens)
+ *     while the rest recede; name/price appear as a quiet overlay, in-scene
  *   • Nav dots at bottom always visible
  *
  * Animation constraints (same as EntryDoor):
@@ -14,7 +15,7 @@
  */
 
 import { AnimatePresence, motion } from 'framer-motion'
-import { ArrowLeft, ChevronLeft, ChevronRight, X } from 'lucide-react'
+import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import cabinetDrops from '../pages/HomePage/data/cabinetDrops'
@@ -38,13 +39,13 @@ function CabinetInterior({ drop, isOpen, selectedItem, onSelectItem, onClose }) 
       className="absolute inset-0"
       style={{ background: 'linear-gradient(175deg, #1d0f04 0%, #080402 100%)' }}
     >
-      {/* ambient warm glow from ceiling */}
+      {/* ambient glow from ceiling — tinted in the drop's accent so the
+          interior keeps the same mood as the door scene */}
       <motion.div
         className="pointer-events-none absolute inset-x-0 top-0"
         style={{
           height: '50%',
-          background:
-            'radial-gradient(ellipse 90% 65% at 50% 0%, rgba(255,138,22,0.52), transparent)',
+          background: `radial-gradient(ellipse 90% 65% at 50% 0%, ${drop.accent}84, transparent)`,
         }}
         animate={{ opacity: isOpen ? 1 : 0 }}
         transition={{ duration: 0.8, delay: 0.28, ease: [0.22, 1, 0.36, 1] }}
@@ -56,8 +57,8 @@ function CabinetInterior({ drop, isOpen, selectedItem, onSelectItem, onClose }) 
         className="pointer-events-none absolute inset-x-0 top-0"
         style={{
           height: 3,
-          background: '#ff9820',
-          boxShadow: '0 0 24px 6px rgba(255,152,32,0.72)',
+          background: drop.accent,
+          boxShadow: `0 0 24px 6px ${drop.accent}b8`,
         }}
         animate={{ opacity: isOpen ? 1 : 0 }}
         transition={{ duration: 0.5, delay: 0.32 }}
@@ -109,13 +110,17 @@ function CabinetInterior({ drop, isOpen, selectedItem, onSelectItem, onClose }) 
         </p>
       </motion.div>
 
-      {/* garment row — 3 equal columns, full height from rod to shelf */}
+      {/* garment row — 3 equal columns, full height from rod to shelf.
+          Default: all pieces hang in profile, slightly receded and dimmed.
+          Selected: the piece pulls FORWARD — turns to face, scales up,
+          drifts toward center, brightens — while the rest sink back. */}
       <div
         className="absolute flex"
         style={{ left: '4%', right: '4%', top: '21%', bottom: '14%' }}
       >
         {drop.items.map((item, i) => {
           const isSel = i === selectedItem
+          const hasSel = selectedItem >= 0
           return (
             <motion.button
               key={item.id}
@@ -124,16 +129,24 @@ function CabinetInterior({ drop, isOpen, selectedItem, onSelectItem, onClose }) 
               className="relative flex flex-col items-center"
               style={{ flex: '1 1 0', height: '100%' }}
               animate={{
-                opacity: isOpen
-                  ? selectedItem === -1
-                    ? 0.8
-                    : isSel
-                      ? 1
-                      : 0.32
-                  : 0,
+                opacity: !isOpen ? 0 : hasSel ? (isSel ? 1 : 0.24) : 0.85,
+                scale: isSel ? 1.26 : hasSel ? 0.88 : 1,
+                // drift toward screen center (col 0 pushes right, col 2 left)
+                x: isSel ? `${(1 - i) * 55}%` : 0,
+                y: isSel ? '-4%' : 0,
+                filter: isSel
+                  ? 'saturate(1.12) brightness(1.1)'
+                  : hasSel
+                    ? 'saturate(0.45) brightness(0.62)'
+                    : 'saturate(0.88) brightness(0.92)',
+                zIndex: isSel ? 10 : 1,
               }}
               transition={{
-                opacity: { duration: 0.38, delay: isOpen ? 0.44 + i * 0.09 : 0 },
+                opacity: { duration: 0.38, delay: !isOpen || hasSel ? 0 : 0.44 + i * 0.09 },
+                scale: { type: 'spring', stiffness: 260, damping: 26 },
+                x: { type: 'spring', stiffness: 260, damping: 26 },
+                y: { type: 'spring', stiffness: 260, damping: 26 },
+                filter: { duration: 0.45 },
               }}
               onClick={() => isOpen && onSelectItem(i)}
             >
@@ -148,7 +161,8 @@ function CabinetInterior({ drop, isOpen, selectedItem, onSelectItem, onClose }) 
                 aria-hidden="true"
               />
 
-              {/* garment image — scaleX 0.12 = side-profile simulation */}
+              {/* garment image — scaleX 0.12 = side-profile on the rod,
+                  1 = turned to face the viewer */}
               <motion.div
                 className="relative overflow-hidden"
                 style={{ flex: 1, width: '100%' }}
@@ -166,8 +180,7 @@ function CabinetInterior({ drop, isOpen, selectedItem, onSelectItem, onClose }) 
                   <div
                     className="pointer-events-none absolute inset-0"
                     style={{
-                      background:
-                        'radial-gradient(ellipse 80% 80% at 50% 30%, rgba(255,152,32,0.12), transparent)',
+                      background: `radial-gradient(ellipse 80% 80% at 50% 30%, ${drop.accent}1f, transparent)`,
                     }}
                     aria-hidden="true"
                   />
@@ -220,154 +233,6 @@ function CabinetInterior({ drop, isOpen, selectedItem, onSelectItem, onClose }) 
   )
 }
 
-// ─── GarmentSheet ─────────────────────────────────────────────────────────────
-function GarmentSheet({
-  item, accent, dropName, dropLabel,
-  selectedItem, total,
-  onClose, onPrev, onNext,
-}) {
-  return (
-    <motion.div
-      className="absolute inset-x-0 bottom-0 z-50 overflow-hidden"
-      style={{
-        height: '56%',
-        background:
-          'linear-gradient(to top, rgba(5,2,1,0.99) 0%, rgba(9,5,2,0.96) 100%)',
-        borderTop: `1px solid ${accent}40`,
-        borderRadius: '12px 12px 0 0',
-      }}
-      initial={{ y: '100%' }}
-      animate={{ y: 0 }}
-      exit={{ y: '100%' }}
-      transition={{ type: 'spring', stiffness: 350, damping: 36 }}
-    >
-      {/* close */}
-      <button
-        onClick={onClose}
-        aria-label="Close garment detail"
-        className="absolute right-5 top-4 flex items-center justify-center"
-        style={{
-          width: 30, height: 30, borderRadius: '50%',
-          background: 'rgba(242,231,208,0.06)',
-          border: '1px solid rgba(242,231,208,0.14)',
-          color: 'rgba(242,231,208,0.52)',
-        }}
-      >
-        <X size={13} />
-      </button>
-
-      <div className="flex h-full">
-        {/* garment — scaleX 0→1 simulates turning to face the viewer */}
-        <div
-          className="relative flex-none"
-          style={{ width: '38%', padding: '16px 0 16px 20px' }}
-        >
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={selectedItem}
-              className="h-full w-full overflow-hidden"
-              style={{ borderRadius: 4, background: 'rgba(255,255,255,0.02)' }}
-              initial={{ scaleX: 0, opacity: 0 }}
-              animate={{ scaleX: 1, opacity: 1 }}
-              exit={{ scaleX: 0, opacity: 0 }}
-              transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-            >
-              <img
-                src={item.frontImg}
-                alt={item.name}
-                draggable={false}
-                className="h-full w-full object-contain"
-              />
-            </motion.div>
-          </AnimatePresence>
-        </div>
-
-        {/* details */}
-        <div className="flex flex-1 flex-col justify-between px-5 py-5 pt-6">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={`info-${selectedItem}`}
-              initial={{ opacity: 0, x: 14 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -14 }}
-              transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
-            >
-              <p
-                className="font-body text-[8px] uppercase tracking-[0.48em]"
-                style={{ color: `${accent}bb` }}
-              >
-                {dropLabel} — {dropName}
-              </p>
-              <h3
-                className="mt-1.5 font-display text-2xl uppercase leading-none"
-                style={{ color: '#f2e7d0', letterSpacing: '0.08em' }}
-              >
-                {item.name}
-              </h3>
-              <p
-                className="mt-3 font-body text-lg font-medium"
-                style={{ color: accent }}
-              >
-                {item.price}
-              </p>
-            </motion.div>
-          </AnimatePresence>
-
-          <div className="flex flex-col gap-3">
-            {/* step arrows */}
-            <div className="flex items-center gap-3">
-              <button
-                onClick={onPrev}
-                aria-label="Previous garment"
-                className="flex items-center justify-center"
-                style={{
-                  width: 36, height: 36,
-                  border: `1px solid ${accent}50`,
-                  borderRadius: 2,
-                  color: accent,
-                  background: 'rgba(0,0,0,0.2)',
-                }}
-              >
-                <ChevronLeft size={16} />
-              </button>
-              <span
-                className="font-body text-[9px] tracking-[0.35em]"
-                style={{ color: 'rgba(242,231,208,0.38)' }}
-              >
-                {selectedItem + 1} / {total}
-              </span>
-              <button
-                onClick={onNext}
-                aria-label="Next garment"
-                className="flex items-center justify-center"
-                style={{
-                  width: 36, height: 36,
-                  border: `1px solid ${accent}50`,
-                  borderRadius: 2,
-                  color: accent,
-                  background: 'rgba(0,0,0,0.2)',
-                }}
-              >
-                <ChevronRight size={16} />
-              </button>
-            </div>
-
-            {/* shop CTA */}
-            <Link
-              to={`/shop/${item.id}`}
-              id={`shop-cta-${item.id}`}
-              className="flex items-center justify-center py-3 font-body text-[10px] font-semibold uppercase tracking-[0.5em]"
-              style={{ background: accent, color: '#0c0a08', borderRadius: 2 }}
-            >
-              View in Shop
-            </Link>
-          </div>
-        </div>
-      </div>
-    </motion.div>
-  )
-}
-
 // ─── CabinetRoom ─────────────────────────────────────────────────────────────
 export default function CabinetRoom() {
   const [activeIdx,    setActiveIdx]    = useState(0)
@@ -376,6 +241,8 @@ export default function CabinetRoom() {
   const [selectedItem, setSelectedItem] = useState(-1)
 
   const swipeRef   = useRef({ x: 0, y: 0, live: false })
+  // cooldown for scroll transitions
+  const wheelCooldownRef = useRef(false)
   // set when a pointerup is consumed as a swipe — the trailing click event
   // on the door's full-panel button must NOT also fire openDoor()
   const suppressClickRef = useRef(false)
@@ -425,7 +292,26 @@ export default function CabinetRoom() {
     })
   }
 
-  // ── swipe gesture ──────────────────────────────────────────────────────────
+  // ── scroll & swipe gestures ────────────────────────────────────────────────
+  function onWheel(e) {
+    if (isOpen) return // don't transition while viewing garments
+    if (wheelCooldownRef.current) return
+
+    const threshold = 30
+    if (Math.abs(e.deltaY) > threshold || Math.abs(e.deltaX) > threshold) {
+      const isHorizontal = Math.abs(e.deltaX) > Math.abs(e.deltaY)
+      const delta = isHorizontal ? e.deltaX : e.deltaY
+
+      if (delta > 0) goNext()
+      else goPrev()
+
+      wheelCooldownRef.current = true
+      setTimeout(() => {
+        wheelCooldownRef.current = false
+      }, 1000)
+    }
+  }
+
   // The door's full-panel click target is marked data-swipeable: a press that
   // starts on it still arms the swipe tracker (tap = open, drag = navigate).
   function onPointerDown(e) {
@@ -449,13 +335,17 @@ export default function CabinetRoom() {
     <div
       id="cabinet-room"
       className="absolute inset-0 z-10 overflow-hidden"
-      style={{ background: '#06030100', touchAction: 'pan-y' }}
+      style={{ background: '#060301', touchAction: 'pan-y' }}
+      onWheel={onWheel}
       onPointerDown={onPointerDown}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerCancel}
     >
-      {/* ── door carousel ─────────────────────────────────────────────────── */}
-      <AnimatePresence custom={direction} mode="wait">
+      {/* ── door carousel — sync mode (NOT mode="wait"): the outgoing scene
+          keeps sliding out while the incoming scene slides in over it, so
+          the transition is one continuous whole-scene handoff with no empty
+          gap exposing the entry photo underneath ── */}
+      <AnimatePresence custom={direction}>
         <motion.div
           key={activeIdx}
           className="absolute inset-0"
@@ -474,16 +364,57 @@ export default function CabinetRoom() {
             transition={EASE_OUT}
             style={{ willChange: 'transform' }}
           >
-            {/* full-screen door art — cover, nudge object-position down so engravings stay in frame.
-                On mobile the art's height fits the viewport exactly, so the engraved brass plate
-                baked into the art (bottom-center) would collide with the HTML overlay — zoom-crop
-                around the upper door so the plate falls below the frame; the overlay carries the label */}
+            {/* ── scene backdrop — the SAME door art, cover-cropped, heavily
+                blurred and darkened, fills the viewport so the portrait art
+                never leaves dead space on wide screens. Carries the drop's
+                color grade + tint: each swipe arrives in a different world ── */}
+            <div className="absolute inset-0 overflow-hidden" aria-hidden="true">
+              <img
+                src={activeDrop.doorArt}
+                alt=""
+                draggable={false}
+                className="h-full w-full object-cover"
+                style={{
+                  transform: 'scale(1.18)',
+                  filter: `blur(30px) brightness(0.42) ${activeDrop.grade}`,
+                }}
+              />
+              {/* soft-light tint wash — the per-drop mood layer */}
+              <div
+                className="absolute inset-0"
+                style={{
+                  background: `linear-gradient(180deg, ${activeDrop.tint}33 0%, ${activeDrop.tint}1f 55%, ${activeDrop.tint}40 100%)`,
+                  mixBlendMode: 'soft-light',
+                }}
+              />
+              <div
+                className="absolute inset-0"
+                style={{ background: `${activeDrop.tint}14` }}
+              />
+            </div>
+
+            {/* ── full-screen door art ──
+                desktop (md+): object-contain — the whole door (frame, LED,
+                plate) is visible, no zoom-crop; the blurred backdrop fills
+                the sides. mobile: cover + zoom-crop around the upper door so
+                the baked brass plate stays out of frame (HTML overlay labels
+                the drop instead) ── */}
             <img
               src={activeDrop.doorArt}
               alt={activeDrop.name}
               draggable={false}
-              className="absolute inset-0 h-full w-full max-md:origin-[50%_10%] max-md:scale-[1.4]"
-              style={{ objectFit: 'cover', objectPosition: 'center 42%' }}
+              className="absolute inset-0 h-full w-full object-contain max-md:origin-[50%_10%] max-md:scale-[1.4] max-md:object-cover"
+              style={{ filter: activeDrop.grade }}
+            />
+
+            {/* full-panel grade tint — soft-light so art keeps its detail */}
+            <div
+              className="pointer-events-none absolute inset-0"
+              style={{
+                background: `${activeDrop.tint}2e`,
+                mixBlendMode: 'soft-light',
+              }}
+              aria-hidden="true"
             />
 
             {/* side vignette — adds premium depth */}
@@ -605,7 +536,9 @@ export default function CabinetRoom() {
             drop={activeDrop}
             isOpen={isOpen}
             selectedItem={selectedItem}
-            onSelectItem={setSelectedItem}
+            onSelectItem={(i) =>
+              setSelectedItem((prev) => (prev === i ? -1 : i))
+            }
             onClose={closeDoor}
           />
         </motion.div>
@@ -705,21 +638,83 @@ export default function CabinetRoom() {
         ))}
       </div>
 
-      {/* ── garment detail sheet ──────────────────────────────────────── */}
-      <AnimatePresence>
+      {/* ── garment caption — a quiet overlay, not a sheet: the closet
+              scene stays dominant; type + steppers float over it ── */}
+      <AnimatePresence mode="wait">
         {isOpen && selectedItem >= 0 && (
-          <GarmentSheet
-            key={activeIdx}
-            item={activeDrop.items[selectedItem]}
-            accent={activeDrop.accent}
-            dropName={activeDrop.name}
-            dropLabel={activeDrop.label}
-            selectedItem={selectedItem}
-            total={activeDrop.items.length}
-            onClose={() => setSelectedItem(-1)}
-            onPrev={() => stepItem(-1)}
-            onNext={() => stepItem(1)}
-          />
+          <motion.div
+            key={`${activeIdx}-${selectedItem}`}
+            className="absolute bottom-14 left-8 z-30"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 6 }}
+            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <p
+              className="font-body text-[8px] uppercase tracking-[0.48em]"
+              style={{ color: `${activeDrop.accent}bb` }}
+            >
+              {activeDrop.label} — {activeDrop.name}
+            </p>
+            <h3
+              className="mt-1 font-display text-xl uppercase leading-none"
+              style={{ color: '#f2e7d0', letterSpacing: '0.08em' }}
+            >
+              {activeDrop.items[selectedItem].name}
+            </h3>
+            <p
+              className="mt-1.5 font-body text-sm font-medium"
+              style={{ color: activeDrop.accent }}
+            >
+              {activeDrop.items[selectedItem].price}
+            </p>
+
+            <div className="mt-3 flex items-center gap-4">
+              {/* quiet steppers — same gesture as reaching along the rod */}
+              <button
+                onClick={() => stepItem(-1)}
+                aria-label="Previous garment"
+                className="flex items-center justify-center"
+                style={{
+                  width: 26, height: 26,
+                  border: `1px solid ${activeDrop.accent}50`,
+                  borderRadius: 2,
+                  color: activeDrop.accent,
+                }}
+              >
+                <ChevronLeft size={13} />
+              </button>
+              <span
+                className="font-body text-[8px] tracking-[0.35em]"
+                style={{ color: 'rgba(242,231,208,0.38)' }}
+              >
+                {selectedItem + 1} / {activeDrop.items.length}
+              </span>
+              <button
+                onClick={() => stepItem(1)}
+                aria-label="Next garment"
+                className="flex items-center justify-center"
+                style={{
+                  width: 26, height: 26,
+                  border: `1px solid ${activeDrop.accent}50`,
+                  borderRadius: 2,
+                  color: activeDrop.accent,
+                }}
+              >
+                <ChevronRight size={13} />
+              </button>
+
+              {/* minimal text link — no CTA bar */}
+              <Link
+                to={`/shop/${activeDrop.items[selectedItem].id}`}
+                id={`shop-cta-${activeDrop.items[selectedItem].id}`}
+                className="ml-2 font-body text-[9px] uppercase tracking-[0.42em]"
+                style={{ color: `${activeDrop.accent}dd` }}
+              >
+                View in Shop →
+              </Link>
+            </div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>
