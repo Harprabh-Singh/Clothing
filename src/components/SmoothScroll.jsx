@@ -24,6 +24,9 @@ function SmoothScroll({ children }) {
 
     lenisRef.current = lenis
 
+    // Expose for programmatic scroll (e.g. cinematic auto-scroll)
+    window.__lenis = lenis
+
     // Connect Lenis to GSAP ScrollTrigger
     lenis.on('scroll', ScrollTrigger.update)
 

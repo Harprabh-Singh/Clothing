@@ -1,19 +1,18 @@
 /**
- * DoorSequence — Apple-style scroll-linked canvas image sequence.
+ * DoorSequence — Cinematic scroll-triggered door animation.
  *
  * Architecture:
- *  1. Preload all 300 frames into Image objects before anything plays.
+ *  1. Preload all frames into Image objects before anything plays.
  *  2. Show a cinematic loading overlay until every frame is decoded.
- *  3. GSAP ScrollTrigger pins the section and scrubs a progress value.
- *  4. On each scrub tick, clamp + round the frame index and drawImage.
+ *  3. GSAP ScrollTrigger pins the section.
+ *  4. Once user scrolls past ~5 frames, auto-scroll kicks in and smoothly
+ *     scrubs the rest of the animation at a fixed cinematic pace.
+ *  5. Canvas draws each frame with cover-fit scaling.
  *
  * Key choices:
- *  - `scrub: true`  (not `scrub: 1`) because Lenis already smooths the
- *    scroll; adding GSAP scrub delay on top creates a double-lag effect.
- *  - `will-change: transform` on the canvas keeps it on its own
- *    compositor layer so repaints never block the main thread.
- *  - All scroll-to-frame math happens inside onUpdate; no React state
- *    is mutated during the animation so re-renders are zero.
+ *  - Auto-scroll uses Lenis native scrollTo for buttery smooth tweening.
+ *  - `will-change: transform` on the canvas keeps it on its own compositor layer.
+ *  - All frame math happens inside onUpdate / onTick; zero React re-renders.
  */
 
 import { useEffect, useRef, useState } from 'react'
@@ -25,19 +24,17 @@ gsap.registerPlugin(ScrollTrigger)
 // ─── Config ───────────────────────────────────────────────────────────────────
 const TOTAL_FRAMES = 241
 const SCROLL_MULTIPLIER = 6   // section height = SCROLL_MULTIPLIER × 100vh
-const BASE_PATH = '/door_animation/ezgif-frame-'
+const BASE_PATH = '/kimi_folder/ezgif-frame-'
+const AUTO_SCROLL_TRIGGER_FRAME = 5   // after this many manual frames, auto-play
+const AUTO_SCROLL_DURATION = 5.5      // seconds to play remaining frames
 
 /** Zero-pads a number to 3 digits: 1 → "001" */
 const pad = (n) => String(n).padStart(3, '0')
 
-/** Build the ordered URL array (1-indexed, 001 … 300) */
-const FRAME_URLS = Array.from({ length: TOTAL_FRAMES }, (_, i) => `${BASE_PATH}${pad(i + 1)}.jpg`)
+/** Build the ordered URL array (1-indexed, 001 … 241) */
+const FRAME_URLS = Array.from({ length: TOTAL_FRAMES }, (_, i) => `${BASE_PATH}${pad(i + 1)}.avif`)
 
 // ─── Preloader ────────────────────────────────────────────────────────────────
-/**
- * Loads all frames in parallel and calls `onProgress(loaded, total)` for
- * each resolved image, then resolves with the array of Image objects.
- */
 function preloadFrames(urls, onProgress) {
   const images = new Array(urls.length)
   let loaded = 0
@@ -63,16 +60,20 @@ function preloadFrames(urls, onProgress) {
 function DoorSequence() {
   const sectionRef  = useRef(null)
   const canvasRef   = useRef(null)
-  const imagesRef   = useRef([])       // decoded Image objects, filled after preload
-  const frameRef    = useRef(0)        // current logical frame index (0-based)
-  const rafRef      = useRef(null)     // pending rAF handle
-  const ctxRef      = useRef(null)     // 2D canvas context
-  const stRef       = useRef(null)     // ScrollTrigger instance
+  const imagesRef   = useRef([])
+  const frameRef    = useRef(0)
+  const rafRef      = useRef(null)
+  const ctxRef      = useRef(null)
+  const stRef       = useRef(null)
 
-  const [loadPct, setLoadPct]     = useState(0)     // 0-100
-  const [isReady, setIsReady]     = useState(false)  // all frames decoded
+  const hasAutoScrolledRef = useRef(false)
+  const prevProgressRef    = useRef(0)
 
-  // ── Resize handler: keep canvas pixels == physical pixels ──────────────────
+  const [loadPct, setLoadPct]     = useState(0)
+  const [isReady, setIsReady]     = useState(false)
+  const [showHint, setShowHint]   = useState(true)
+
+  // ── Resize handler ─────────────────────────────────────────────────────────
   const resizeCanvas = () => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -82,7 +83,6 @@ function DoorSequence() {
     canvas.style.width  = `${window.innerWidth}px`
     canvas.style.height = `${window.innerHeight}px`
     ctxRef.current = canvas.getContext('2d')
-    // Redraw current frame after resize
     drawFrame(frameRef.current)
   }
 
@@ -95,7 +95,6 @@ function DoorSequence() {
 
     ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-    // "cover" the canvas: scale to fill, centre-crop
     const cw = canvas.width
     const ch = canvas.height
     const iw = img.naturalWidth
@@ -109,17 +108,17 @@ function DoorSequence() {
     ctx.drawImage(img, dx, dy, dw, dh)
   }
 
-  // ── Scheduled rAF draw so multiple scrub ticks collapse into one paint ──────
+  // ── Scheduled rAF draw ─────────────────────────────────────────────────────
   const scheduleFrame = (index) => {
     frameRef.current = index
-    if (rafRef.current) return                     // already scheduled
+    if (rafRef.current) return
     rafRef.current = requestAnimationFrame(() => {
       rafRef.current = null
       drawFrame(frameRef.current)
     })
   }
 
-  // ── Preload → then wire up ScrollTrigger ───────────────────────────────────
+  // ── Preload ────────────────────────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false
 
@@ -134,27 +133,56 @@ function DoorSequence() {
     return () => { cancelled = true }
   }, [])
 
-  // ── After ready: set up canvas, resize listener, ScrollTrigger ────────────
+  // ── After ready: set up canvas, resize, ScrollTrigger, auto-scroll ─────────
   useEffect(() => {
     if (!isReady) return
 
     resizeCanvas()
-    drawFrame(0)                                   // show frame 1 immediately
+    drawFrame(0)
 
     window.addEventListener('resize', resizeCanvas)
 
-    // ScrollTrigger: pin the section, scrub progress 0→1
     stRef.current = ScrollTrigger.create({
       trigger: sectionRef.current,
       start: 'top top',
       end: `+=${SCROLL_MULTIPLIER * 100}%`,
       pin: true,
       anticipatePin: 1,
-      scrub: true,                                 // tied 1-to-1 with scroll
+      scrub: true,
       onUpdate: (self) => {
         const raw   = self.progress * (TOTAL_FRAMES - 1)
         const index = Math.min(TOTAL_FRAMES - 1, Math.max(0, Math.round(raw)))
         scheduleFrame(index)
+
+        // ── Auto-scroll trigger ─────────────────────────────────────────────
+        const goingDown = self.progress > prevProgressRef.current
+        prevProgressRef.current = self.progress
+
+        const threshold = AUTO_SCROLL_TRIGGER_FRAME / TOTAL_FRAMES
+
+        if (
+          goingDown &&
+          !hasAutoScrolledRef.current &&
+          self.progress > threshold &&
+          self.progress < 0.98
+        ) {
+          hasAutoScrolledRef.current = true
+          setShowHint(false)
+
+          // Use Lenis for buttery smooth programmatic scroll
+          const endY = stRef.current?.end ?? window.scrollY + window.innerHeight * 4
+          const lenis = window.__lenis
+
+          if (lenis) {
+            lenis.scrollTo(endY, {
+              duration: AUTO_SCROLL_DURATION,
+              easing: (t) => 1 - Math.pow(1 - t, 3), // ease-out-cubic
+            })
+          } else {
+            // Fallback if Lenis isn't available
+            window.scrollTo({ top: endY, behavior: 'smooth' })
+          }
+        }
       },
     })
 
@@ -173,13 +201,12 @@ function DoorSequence() {
       id="door-sequence"
       style={{
         position: 'relative',
-        height: '100vh',          // GSAP pin spacer handles the scroll budget
+        height: '100vh',
         width: '100%',
         background: '#0a0a0a',
         overflow: 'hidden',
       }}
     >
-      {/* Canvas (always mounted so GSAP can pin it) */}
       <canvas
         ref={canvasRef}
         aria-hidden="true"
@@ -187,13 +214,13 @@ function DoorSequence() {
           position:   'absolute',
           inset:      0,
           display:    'block',
-          willChange: 'transform',   // own compositor layer → no jank
+          willChange: 'transform',
           opacity:    isReady ? 1 : 0,
           transition: 'opacity 0.6s ease',
         }}
       />
 
-      {/* Loading overlay (visible until all frames are ready) */}
+      {/* Loading overlay */}
       {!isReady && (
         <div
           style={{
@@ -208,7 +235,6 @@ function DoorSequence() {
             gap:           '28px',
           }}
         >
-          {/* Wordmark */}
           <p
             style={{
               fontFamily:    "'Archivo Black', 'Arial Black', sans-serif",
@@ -221,8 +247,6 @@ function DoorSequence() {
           >
             LOADING
           </p>
-
-          {/* Progress track */}
           <div
             style={{
               width:        'clamp(200px, 40vw, 360px)',
@@ -244,8 +268,6 @@ function DoorSequence() {
               }}
             />
           </div>
-
-          {/* Percentage */}
           <p
             style={{
               fontFamily:    "'Work Sans', sans-serif",
@@ -262,8 +284,8 @@ function DoorSequence() {
         </div>
       )}
 
-      {/* Scroll hint (visible once loaded) */}
-      {isReady && (
+      {/* Scroll hint */}
+      {isReady && showHint && (
         <div
           style={{
             position:      'absolute',
@@ -276,6 +298,7 @@ function DoorSequence() {
             gap:           '10px',
             zIndex:        5,
             pointerEvents: 'none',
+            transition:    'opacity 0.4s ease',
           }}
         >
           <p
@@ -291,7 +314,6 @@ function DoorSequence() {
           >
             Scroll
           </p>
-          {/* Animated dot rail */}
           <div style={{ width: '2px', height: '44px', background: 'rgba(242,231,208,0.18)', position: 'relative', borderRadius: '2px', overflow: 'hidden' }}>
             <div
               style={{
@@ -309,7 +331,6 @@ function DoorSequence() {
         </div>
       )}
 
-      {/* Keyframe for scroll hint dot */}
       <style>{`
         @keyframes doorScrollDot {
           0%   { transform: translateY(0%);   opacity: 1; }

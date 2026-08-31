@@ -22,8 +22,8 @@ const pageTransition = {
 function App() {
   const location = useLocation()
   const isHome = location.pathname === '/'
-  // the entry sequence owns the opening viewport — the page progress bar and
-  // the rest of the chrome only appear once the visitor has passed the door
+  // the entry sequence owns the opening viewport on the homepage — the page
+  // progress bar only appears once the visitor has passed the door
   const [entryPassed, setEntryPassed] = useState(false)
 
   return (

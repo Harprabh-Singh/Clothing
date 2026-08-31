@@ -1,8 +1,8 @@
 import { useCallback, useState } from 'react'
-import EntryDoor from '../../components/EntryDoor'
+import DoorScrollSequence from '../../components/DoorScrollSequence'
 import ClosetInterior from '../../components/ClosetInterior'
 import NavBar from './navigation/NavBar'
-import DoorSequence from './sections/GarmentSequence/DoorSequence'
+import GarmentSequence from './sections/GarmentSequence/GarmentSequence'
 import ProductGrid from './sections/ProductSection/ProductGrid'
 import AboutSection from './sections/AboutSection/AboutSection'
 import NewsletterSection from './sections/NewsletterSection/NewsletterSection'
@@ -10,7 +10,7 @@ import FooterSection from './sections/FooterSection/FooterSection'
 
 function HomePage({ onEntryPassed }) {
   // the door is the entire focus on load — the navbar fades in and the rest
-  // of the homepage mounts only after the entry sequence completes (or skips)
+  // of the homepage mounts only after the walk-in sequence finishes
   const [entryPassed, setEntryPassed] = useState(false)
   const handlePassed = useCallback(
     (passed) => {
@@ -22,7 +22,7 @@ function HomePage({ onEntryPassed }) {
 
   return (
     <div className="min-h-screen bg-[var(--color-ink)] text-[var(--color-bone)]">
-      <EntryDoor onPassedChange={handlePassed} />
+      <DoorScrollSequence onPassedChange={handlePassed} />
       <div
         className={`transition-opacity duration-700 ${entryPassed ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
         aria-hidden={!entryPassed}
@@ -33,7 +33,7 @@ function HomePage({ onEntryPassed }) {
         {entryPassed && (
           <>
             <ClosetInterior />
-            <DoorSequence />
+            <GarmentSequence />
             <ProductGrid />
             <AboutSection />
             <NewsletterSection />

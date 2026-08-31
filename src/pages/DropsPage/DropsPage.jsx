@@ -1,6 +1,7 @@
 import { motion, useScroll, useTransform } from 'framer-motion'
 import { useRef } from 'react'
 import RevealText from '../../components/RevealText'
+import CabinetRoom from '../../components/CabinetRoom'
 
 const drops = [
   { id: '001', title: 'First Cut', date: 'APR 08', count: 18, status: 'ARCHIVED', color: '#2A2A2A' },
@@ -140,6 +141,12 @@ function DropsPage() {
             ))}
           </div>
         </div>
+      </div>
+
+      {/* ── the cupboard part: full-screen cabinet carousel, one drop's door
+          at a time (moved here from the homepage entry) ── */}
+      <div className="relative -mx-4 mt-24 h-[100dvh] overflow-hidden sm:-mx-6 lg:-mx-8">
+        <CabinetRoom />
       </div>
     </main>
   )
