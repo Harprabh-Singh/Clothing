@@ -1,60 +1,83 @@
 /**
- * DoorScrollSequence — the entry experience as a scroll-driven frame player.
+ * DoorScrollSequence — the entry experience as a click-driven frame player.
  *
  * The 241 processed AVIF frames (public/kimi_folder) show the camera walking
  * up to the closed hallway door, opening it, and arriving at the closet's
- * brass rod. Scrolling plays them like a smooth 30fps video.
+ * brass rod. They play like a smooth ~30fps video — but NEVER from scrolling.
  *
  * Behavior (per owner spec):
- *   • Idle at frame 1 with a "click to enter" cue — scrolling past does NOT
- *     start the sequence (manual scroll still scrubs the frames slowly)
- *   • Click the door → auto-play, locked, through to frame 236, then stop
- *     there (the walk-in section continues below in the page flow)
- *   • Stopped at 236, ANY scroll upward → auto-play back to frame 1, locked
- *   • Manual scroll input is blocked while an auto-play is running
+ *   • Idle at frame 1 with a "click to enter" cue — the page is scroll-locked,
+ *     clicking the door is the ONLY way forward
+ *   • Click → auto-play, scroll-locked, LINEAR motion all the way to frame 236
+ *     (no easing — the reel must not slow down near the last frames)
+ *   • Stopped at 236, the page unlocks: the walk-in section continues below and
+ *     scrolls freely — scrolling never moves the playhead
+ *   • The ONLY way back to frame 1 is the "go back" button on the completed
+ *     hero — it rewinds (linear, scroll-locked) to frame 1, where the page
+ *     locks again until the next click
  *
  * Frames: 241 processed AVIFs in public/kimi_folder; forward play stops at
- * 236 per owner spec (the last few frames are only reachable by manual
- * scrub). Adjust PLAY_END here if the reel changes.
- *
- * Smoothing: Lenis already smooths wheel input; on top of that the displayed
- * frame lerps toward the scroll target every rAF, so motion never jumps.
+ * 236 per owner spec. Adjust PLAY_END here if the reel changes.
  */
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 // ─── tuning ────────────────────────────────────────────────────────────────
-const FRAME_COUNT  = 241            // frames present in public/kimi_folder
-const PLAY_END     = 236            // forward auto-play stops on THIS frame —
-                                    // scrolling up from it (below 236) rewinds
-const TRACK_VH     = 520            // scroll-track length for the sequence
-const PLAY_MS      = 7000           // forward auto-play duration (~30fps feel)
-const REWIND_MS    = 4500           // rewind is a reset — slightly quicker
-const LERP         = 0.16           // display smoothing factor per rAF tick
+const FRAME_COUNT = 241   // frames present in public/kimi_folder
+const PLAY_END    = 236   // forward auto-play stops on THIS frame
+const PLAY_MS     = 7000  // forward auto-play duration (~30fps feel)
+const REWIND_MS   = 4500  // rewind is a reset — slightly quicker
 
 const FRAME_URL = (n) =>
   `/kimi_folder/ezgif-frame-${String(n).padStart(3, '0')}.avif`
 
-const easeInOutCubic = (t) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2)
-
 const CREAM = '#f5f1e8'
 const FAINT = 'rgba(242, 231, 208, 0.32)'
 
-export default function DoorScrollSequence({ onPassedChange }) {
-  const sectionRef  = useRef(null)
-  const canvasRef   = useRef(null)
-  const imagesRef   = useRef([])        // Image elements, index = frame-1
-  const decodedRef  = useRef([])        // boolean per frame
-  const displayedRef = useRef(1)        // smoothed playhead (float)
-  const drawnRef    = useRef(0)         // last frame actually drawn
-  const autoRef     = useRef(null)      // {fromY, toY, t0, dur, goal} | null
-  const completeRef = useRef(false)
-  const passedRef   = useRef(false)
+// ─── scroll locking (module-level so add/removeEventListener stay paired) ──
+const block = (e) => e.preventDefault()
+const blockKeys = (e) => {
+  if (['ArrowDown', 'ArrowUp', 'PageDown', 'PageUp', ' ', 'Home', 'End'].includes(e.key)) {
+    e.preventDefault()
+  }
+}
+const snapTop = () => { if (window.scrollY !== 0) window.scrollTo(0, 0) }
 
-  const [ready, setReady]       = useState(false)
-  const [loadPct, setLoadPct]   = useState(0)
-  const [complete, setComplete] = useState(false)
-  const enterRef = useRef(null) // click-to-enter trigger, set by the rAF effect
+function lockScroll(snap = false) {
+  if (snap) window.scrollTo(0, 0) // idle always means the top of the page
+  window.addEventListener('wheel', block, { passive: false })
+  window.addEventListener('touchmove', block, { passive: false })
+  window.addEventListener('keydown', blockKeys)
+  if (snap) window.addEventListener('scroll', snapTop)
+  window.__lenis?.stop()
+}
+function unlockScroll() {
+  window.removeEventListener('wheel', block)
+  window.removeEventListener('touchmove', block)
+  window.removeEventListener('keydown', blockKeys)
+  window.removeEventListener('scroll', snapTop)
+  window.__lenis?.start()
+}
+
+export default function DoorScrollSequence({ onPassedChange }) {
+  const canvasRef = useRef(null)
+  const imagesRef  = useRef([])     // Image elements, index = frame-1
+  const decodedRef = useRef([])     // boolean per frame
+  const drawnRef   = useRef(0)      // last frame actually drawn
+  const frameRef   = useRef(1)      // current playhead (float)
+  const rafRef     = useRef(null)
+  const passedRef  = useRef(false)
+  const phaseRef   = useRef('idle') // 'idle' | 'playing' | 'complete' | 'rewinding'
+
+  const [ready, setReady]     = useState(false)
+  const [loadPct, setLoadPct] = useState(0)
+  const [phase, setPhase]     = useState('idle')
+
+  // keep the ref mirror in sync; expose a tiny debug handle in dev
+  useEffect(() => {
+    phaseRef.current = phase
+    if (import.meta.env.DEV) window.__doorPhase = phase
+  }, [phase])
 
   // ── preloading: first window eagerly (playback can start), rest in bg ──
   useEffect(() => {
@@ -96,10 +119,31 @@ export default function DoorScrollSequence({ onPassedChange }) {
         if (cancelled) return
         // eslint-disable-next-line no-await-in-loop
         await load(n)
+        if (import.meta.env.DEV) window.__doorLoaded = n
       }
     })()
 
     return () => { cancelled = true }
+  }, [])
+
+  // ── draw one frame (cover-fit), falling back to the nearest decoded frame ──
+  const draw = useCallback((frameFloat) => {
+    const c = canvasRef.current
+    if (!c) return
+    const ctx = c.getContext('2d')
+    let n = Math.round(frameFloat)
+    // fall back to the nearest decoded frame so playback never blanks
+    while (n > 1 && !decodedRef.current[n - 1]) n -= 1
+    if (n === drawnRef.current || !decodedRef.current[n - 1]) return
+    const img = imagesRef.current[n - 1]
+    const cw = c.width
+    const ch = c.height
+    const s = Math.max(cw / img.naturalWidth, ch / img.naturalHeight)
+    const dw = img.naturalWidth * s
+    const dh = img.naturalHeight * s
+    ctx.drawImage(img, (cw - dw) / 2, (ch - dh) / 2, dw, dh)
+    drawnRef.current = n
+    if (import.meta.env.DEV) window.__doorFrame = n
   }, [])
 
   // ── canvas sizing ─────────────────────────────────────────────────────────
@@ -110,148 +154,81 @@ export default function DoorScrollSequence({ onPassedChange }) {
       const dpr = Math.min(window.devicePixelRatio || 1, 1.75)
       c.width  = Math.round(c.clientWidth * dpr)
       c.height = Math.round(c.clientHeight * dpr)
-      drawnRef.current = 0 // force redraw
+      drawnRef.current = 0        // force redraw (resize clears the canvas)
+      draw(frameRef.current)
     }
     size()
     window.addEventListener('resize', size)
     return () => window.removeEventListener('resize', size)
-  }, [ready])
+  }, [ready, draw])
 
-  // ── main loop: scroll → frame mapping, auto-play, drawing ────────────────
+  // draw the first frame as soon as playback could start
   useEffect(() => {
-    if (!ready) return undefined
-    let raf
+    if (ready) draw(1)
+  }, [ready, draw])
 
-    // the section is NOT necessarily at the top of the page (it sits at the
-    // bottom of /drops) — all mapping is relative to its document position
-    const trackStart = () => {
-      const el = sectionRef.current
-      return el ? el.getBoundingClientRect().top + window.scrollY : 0
-    }
-    const yForFrame = (f) => {
-      const el = sectionRef.current
-      if (!el) return 0
-      const track = el.offsetHeight - window.innerHeight
-      return trackStart() + ((f - 1) / (FRAME_COUNT - 1)) * track
-    }
-
-    const block = (e) => e.preventDefault()
-    const blockKeys = (e) => {
-      if (['ArrowDown', 'ArrowUp', 'PageDown', 'PageUp', ' ', 'Home', 'End'].includes(e.key)) {
-        e.preventDefault()
+  // ── time-based playback — strictly LINEAR, scroll is never involved ──
+  const play = useCallback((goalFrame, done) => {
+    const from = frameRef.current
+    const dur = goalFrame > from ? PLAY_MS : REWIND_MS
+    const t0 = performance.now()
+    const step = (now) => {
+      const t = Math.min(1, (now - t0) / dur)
+      frameRef.current = from + (goalFrame - from) * t // linear: constant speed
+      draw(frameRef.current)
+      if (t >= 1) {
+        rafRef.current = null
+        done?.()
+        return
       }
+      rafRef.current = requestAnimationFrame(step)
     }
-    const lock = () => {
-      window.addEventListener('wheel', block, { passive: false })
-      window.addEventListener('touchmove', block, { passive: false })
-      window.addEventListener('keydown', blockKeys)
-      window.__lenis?.stop()
-    }
-    const unlock = () => {
-      window.removeEventListener('wheel', block)
-      window.removeEventListener('touchmove', block)
-      window.removeEventListener('keydown', blockKeys)
-      window.__lenis?.start()
-    }
+    rafRef.current = requestAnimationFrame(step)
+  }, [draw])
 
-    const startAuto = (goalFrame) => {
-      const forward = goalFrame > 1
-      autoRef.current = {
-        fromY: window.scrollY,
-        toY: yForFrame(goalFrame),
-        t0: performance.now(),
-        dur: forward ? PLAY_MS : REWIND_MS,
-        goal: goalFrame,
+  // click-to-enter: the ONLY way the forward play starts
+  const enter = useCallback(() => {
+    if (phaseRef.current !== 'idle') return
+    setPhase('playing')
+    play(PLAY_END, () => {
+      setPhase('complete')
+      if (!passedRef.current) {
+        passedRef.current = true
+        onPassedChange?.(true)
       }
-      lock()
-    }
-    // click-to-enter: the only way the forward auto-play starts
-    enterRef.current = () => {
-      if (!autoRef.current && !completeRef.current) startAuto(PLAY_END)
-    }
+    })
+  }, [play, onPassedChange])
 
-    const draw = (frameFloat) => {
-      const c = canvasRef.current
-      if (!c) return
-      const ctx = c.getContext('2d')
-      let n = Math.round(frameFloat)
-      // fall back to the nearest decoded frame so playback never blanks
-      while (n > 1 && !decodedRef.current[n - 1]) n -= 1
-      if (n === drawnRef.current || !decodedRef.current[n - 1]) return
-      const img = imagesRef.current[n - 1]
-      const cw = c.width
-      const ch = c.height
-      const s = Math.max(cw / img.naturalWidth, ch / img.naturalHeight)
-      const dw = img.naturalWidth * s
-      const dh = img.naturalHeight * s
-      ctx.drawImage(img, (cw - dw) / 2, (ch - dh) / 2, dw, dh)
-      drawnRef.current = n
-    }
+  // go back: the ONLY way back to frame 1
+  const goBack = useCallback(() => {
+    if (phaseRef.current !== 'complete') return
+    setPhase('rewinding')
+    play(1, () => setPhase('idle'))
+  }, [play])
 
-    const tick = (now) => {
-      raf = requestAnimationFrame(tick)
+  // ── scroll lock follows the phase: locked everywhere except "complete" ──
+  useEffect(() => {
+    if (phase === 'complete') unlockScroll()
+    else lockScroll(phase === 'idle') // idle also snaps the page back to top
+    return () => unlockScroll()
+  }, [phase])
 
-      // ── auto-play drives the real scroll position ──
-      const auto = autoRef.current
-      if (auto) {
-        const t = Math.min(1, (now - auto.t0) / auto.dur)
-        const y = auto.fromY + (auto.toY - auto.fromY) * easeInOutCubic(t)
-        window.scrollTo(0, y)
-        if (t >= 1) {
-          autoRef.current = null
-          unlock()
-          if (auto.goal === PLAY_END && !completeRef.current) {
-            completeRef.current = true
-            setComplete(true)
-            if (!passedRef.current) {
-              passedRef.current = true
-              onPassedChange?.(true)
-            }
-          }
-          if (auto.goal === 1 && completeRef.current) {
-            completeRef.current = false
-            setComplete(false)
-          }
-        }
-      }
-
-      // ── map scroll → target frame (relative to the section's position) ──
-      const el = sectionRef.current
-      if (!el) return
-      const track = el.offsetHeight - window.innerHeight
-      const progress = Math.min(1, Math.max(0, (window.scrollY - trackStart()) / track))
-      const target = progress * (FRAME_COUNT - 1) + 1
-
-      // ── rewind trigger: stopped at PLAY_END (236), so ANY scroll upward
-      //    lands below it and rewinds to frame 1 ──
-      if (!autoRef.current && completeRef.current && target < PLAY_END - 0.5) {
-        startAuto(1)
-      }
-
-      // ── humanlike smoothing: ease the playhead toward the target ──
-      displayedRef.current += (target - displayedRef.current) * LERP
-      draw(displayedRef.current)
-    }
-
-    raf = requestAnimationFrame(tick)
-    return () => {
-      cancelAnimationFrame(raf)
-      enterRef.current = null
-    }
-  }, [ready, onPassedChange])
+  // cancel any in-flight playback on unmount
+  useEffect(() => () => {
+    if (rafRef.current) cancelAnimationFrame(rafRef.current)
+  }, [])
 
   return (
     <section
-      ref={sectionRef}
-      className="relative"
-      style={{ height: `${TRACK_VH}vh`, background: '#060402' }}
+      className="relative h-[100dvh] overflow-hidden"
+      style={{ background: '#060402' }}
       aria-label="The closet door — click to enter"
     >
       <div
-        className={`sticky top-0 h-[100dvh] overflow-hidden ${!complete ? 'cursor-pointer' : ''}`}
-        onClick={() => { if (ready && !complete) enterRef.current?.() }}
-        role={!complete ? 'button' : undefined}
-        aria-label={!complete ? 'Enter the walk-in closet' : undefined}
+        className={`absolute inset-0 ${phase === 'idle' ? 'cursor-pointer' : ''}`}
+        onClick={() => { if (ready) enter() }}
+        role={phase === 'idle' ? 'button' : undefined}
+        aria-label={phase === 'idle' ? 'Enter the walk-in closet' : undefined}
       >
         {/* the frame reel */}
         <canvas
@@ -278,8 +255,8 @@ export default function DoorScrollSequence({ onPassedChange }) {
           </div>
         )}
 
-        {/* scroll cue — visible until the walk finishes */}
-        {ready && !complete && (
+        {/* click-to-enter cue — idle only */}
+        {ready && phase === 'idle' && (
           <div className="pointer-events-none absolute inset-x-0 bottom-8 flex flex-col items-center gap-3">
             <span style={{ width: 1, height: 40, background: 'rgba(232,213,174,0.35)' }} aria-hidden="true" />
             <span
@@ -291,8 +268,23 @@ export default function DoorScrollSequence({ onPassedChange }) {
           </div>
         )}
 
-        {/* when the camera reaches the rod (last frame), the walk-in
-            section simply continues below — no overlay fades in */}
+        {/* go back — the ONLY way back to frame 1 */}
+        {ready && phase === 'complete' && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); goBack() }}
+            className="absolute inset-x-0 bottom-8 mx-auto flex w-fit cursor-pointer flex-col items-center gap-3 bg-transparent"
+            aria-label="Go back to the start"
+          >
+            <span
+              className="font-body text-[10px] uppercase"
+              style={{ letterSpacing: '0.5em', color: 'rgba(242,231,208,0.6)' }}
+            >
+              go back
+            </span>
+            <span style={{ width: 1, height: 40, background: 'rgba(232,213,174,0.35)' }} aria-hidden="true" />
+          </button>
+        )}
       </div>
     </section>
   )

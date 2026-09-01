@@ -5,7 +5,6 @@ import { CartProvider } from './context/CartContext'
 import ScrollProgress from './components/ScrollProgress'
 import SmoothScroll from './components/SmoothScroll'
 import HomePage from './pages/HomePage/HomePage'
-import ClosetInterior from './components/ClosetInterior'
 import ShopPage from './pages/ShopPage/ShopPage'
 import ProductDetailPage from './pages/ProductDetailPage/ProductDetailPage'
 import DropsPage from './pages/DropsPage/DropsPage'
@@ -38,9 +37,6 @@ function App() {
             <Route path="/drops" element={<motion.div key="drops" {...pageTransition}><DropsPage /></motion.div>} />
             <Route path="/about" element={<motion.div key="about" {...pageTransition}><AboutPage /></motion.div>} />
             <Route path="/contact" element={<motion.div key="contact" {...pageTransition}><ContactPage /></motion.div>} />
-            {/* temporary dev route: the standalone closet interior, developed
-                and tested independently of the entry-door sequence */}
-            <Route path="/closet" element={<motion.div key="closet" {...pageTransition}><ClosetInterior /></motion.div>} />
           </Routes>
         </AnimatePresence>
       </SmoothScroll>

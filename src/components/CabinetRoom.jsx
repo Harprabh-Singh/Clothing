@@ -9,7 +9,7 @@
  *     while the rest recede; name/price appear as a quiet overlay, in-scene
  *   • Nav dots at bottom always visible
  *
- * Animation constraints (same as EntryDoor):
+ * Animation constraints:
  *   • transform + opacity ONLY — no live CSS 3D, no layout animation
  *   • All simultaneous animations driven from a single React state tick
  */
