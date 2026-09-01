@@ -28,8 +28,8 @@ const PLAY_END    = 236   // forward auto-play stops on THIS frame
 const PLAY_MS     = 7000  // forward auto-play duration (~30fps feel)
 const REWIND_MS   = 4500  // rewind is a reset — slightly quicker
 
-const FRAME_URL = (n) =>
-  `/kimi_folder/ezgif-frame-${String(n).padStart(3, '0')}.avif`
+const FRAME_URL = (dir, n) =>
+  `/${dir}/ezgif-frame-${String(n).padStart(3, '0')}.avif`
 
 const CREAM = '#f5f1e8'
 const FAINT = 'rgba(242, 231, 208, 0.32)'
@@ -68,6 +68,7 @@ export default function DoorScrollSequence({ onPassedChange }) {
   const rafRef     = useRef(null)
   const passedRef  = useRef(false)
   const phaseRef   = useRef('idle') // 'idle' | 'playing' | 'complete' | 'rewinding'
+  const frontierRef = useRef(0)     // highest n with frames 1..n ALL decoded
 
   const [ready, setReady]     = useState(false)
   const [loadPct, setLoadPct] = useState(0)
@@ -79,27 +80,40 @@ export default function DoorScrollSequence({ onPassedChange }) {
     if (import.meta.env.DEV) window.__doorPhase = phase
   }, [phase])
 
-  // ── preloading: first window eagerly (playback can start), rest in bg ──
+  // ── preloading: small set on phones, full set on desktop; first window
+  //    eagerly (playback can start), the rest streaming in parallel ──
   useEffect(() => {
     let cancelled = false
+    const mobile = window.matchMedia('(max-width: 768px)').matches
+    const dir = mobile ? 'kimi_folder_m' : 'kimi_folder'
+    if (import.meta.env.DEV) window.__doorSet = dir
     const images = new Array(FRAME_COUNT)
     const decoded = new Array(FRAME_COUNT).fill(false)
     imagesRef.current = images
     decodedRef.current = decoded
+    frontierRef.current = 0
+
+    const markDecoded = (n) => {
+      decoded[n - 1] = true
+      let f = frontierRef.current
+      while (f < FRAME_COUNT && decoded[f]) f += 1
+      frontierRef.current = f
+      if (import.meta.env.DEV) window.__doorLoaded = f
+    }
 
     const load = (n) =>
       new Promise((resolve) => {
         const img = new Image()
-        img.src = FRAME_URL(n)
+        img.src = FRAME_URL(dir, n)
         img.decode?.().catch(() => {}).finally(() => {
           if (cancelled) return
           images[n - 1] = img
-          decoded[n - 1] = true
+          markDecoded(n)
           resolve()
         }) ?? (img.onload = () => {
           if (cancelled) return
           images[n - 1] = img
-          decoded[n - 1] = true
+          markDecoded(n)
           resolve()
         })
       })
@@ -114,13 +128,17 @@ export default function DoorScrollSequence({ onPassedChange }) {
         })),
       )
       if (!cancelled) setReady(true)
-      // background: the rest of the reel
-      for (let n = FIRST + 1; n <= FRAME_COUNT; n += 1) {
-        if (cancelled) return
-        // eslint-disable-next-line no-await-in-loop
-        await load(n)
-        if (import.meta.env.DEV) window.__doorLoaded = n
-      }
+      // background: stream the rest, 8 at a time (fast even on slow networks)
+      const queue = []
+      for (let n = FIRST + 1; n <= FRAME_COUNT; n += 1) queue.push(n)
+      const workers = Array.from({ length: 8 }, async () => {
+        while (queue.length && !cancelled) {
+          const n = queue.shift()
+          // eslint-disable-next-line no-await-in-loop
+          await load(n)
+        }
+      })
+      await Promise.all(workers)
     })()
 
     return () => { cancelled = true }
@@ -151,7 +169,10 @@ export default function DoorScrollSequence({ onPassedChange }) {
     const size = () => {
       const c = canvasRef.current
       if (!c) return
-      const dpr = Math.min(window.devicePixelRatio || 1, 1.75)
+      // phones get a lower pixel-ratio cap — full-screen 4K→canvas draws are
+      // the main source of mobile jank, and 1.5 is still crisp on a phone
+      const mobile = window.matchMedia('(max-width: 768px)').matches
+      const dpr = Math.min(window.devicePixelRatio || 1, mobile ? 1.5 : 1.75)
       c.width  = Math.round(c.clientWidth * dpr)
       c.height = Math.round(c.clientHeight * dpr)
       drawnRef.current = 0        // force redraw (resize clears the canvas)
@@ -168,14 +189,26 @@ export default function DoorScrollSequence({ onPassedChange }) {
   }, [ready, draw])
 
   // ── time-based playback — strictly LINEAR, scroll is never involved ──
+  // The forward playhead never outruns the decoded frontier: on slow networks
+  // it pauses at the last decoded frame (buffering) instead of skipping ahead
+  // and finishing early — completion can only fire once frame 236 is real.
   const play = useCallback((goalFrame, done) => {
     const from = frameRef.current
     const dur = goalFrame > from ? PLAY_MS : REWIND_MS
-    const t0 = performance.now()
+    const forward = goalFrame > from
+    let t0 = performance.now()
     const step = (now) => {
-      const t = Math.min(1, (now - t0) / dur)
-      frameRef.current = from + (goalFrame - from) * t // linear: constant speed
-      draw(frameRef.current)
+      let t = Math.min(1, (now - t0) / dur)
+      let target = from + (goalFrame - from) * t // linear: constant speed
+      if (forward && target > frontierRef.current && frontierRef.current < goalFrame) {
+        const cap = Math.max(from, frontierRef.current)
+        const tBoundary = (cap - from) / (goalFrame - from)
+        t0 = now - tBoundary * dur // freeze the clock at the frontier
+        t = tBoundary
+        target = cap
+      }
+      frameRef.current = target
+      draw(target)
       if (t >= 1) {
         rafRef.current = null
         done?.()
